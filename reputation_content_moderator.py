@@ -7,6 +7,13 @@ STARTING_REPUTATION = 100
 MIN_REPUTATION = 0
 MAX_REPUTATION = 1000
 
+def _author_key(address) -> str:
+    # Addresses reach this contract in different shapes: checksummed from
+    # gl.message, lowercase from a CLI or an indexer, mixed case from a UI.
+    # One canonical key stops the same person accumulating two reputations.
+    return str(address).strip().lower()
+
+
 REPUTATION_DELTA = {
     "APPROVED": 2,
     "WARNED": -3,
@@ -33,6 +40,7 @@ class ReputationContentModerator(gl.Contract):
         self.community_rules = new_rules
 
     def _get_or_init_user(self, author: str) -> dict:
+        author = _author_key(author)
         raw = self.users.get(author, None)
         if raw is None:
             return {
@@ -47,7 +55,7 @@ class ReputationContentModerator(gl.Contract):
 
     @gl.public.write
     def submit_content(self, content: str) -> None:
-        author = gl.message.sender_address.as_hex
+        author = _author_key(gl.message.sender_address.as_hex)
         community_rules = self.community_rules
 
         user = self._get_or_init_user(author)
@@ -135,6 +143,7 @@ class ReputationContentModerator(gl.Contract):
 
     @gl.public.view
     def get_user_reputation(self, author: str) -> str:
+        author = _author_key(author)
         raw = self.users.get(author, None)
         if raw is None:
             return json.dumps({
@@ -149,7 +158,7 @@ class ReputationContentModerator(gl.Contract):
 
     @gl.public.view
     def get_post(self, post_id: str) -> str:
-        data = self.posts.get(post_id, None)
+        data = self.posts.get(str(post_id), None)
         if data is None:
             return json.dumps({"error": "Post not found"})
         return data
