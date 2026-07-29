@@ -15,12 +15,22 @@ REPUTATION_DELTA = {
 
 
 class ReputationContentModerator(gl.Contract):
+    owner: Address
+    community_rules: str
     users: TreeMap[str, str]
     posts: TreeMap[str, str]
     post_count: bigint
 
-    def __init__(self) -> None:
+    def __init__(self, community_rules: str) -> None:
+        self.owner = gl.message.sender_address
+        self.community_rules = community_rules
         self.post_count = bigint(0)
+
+    @gl.public.write
+    def set_community_rules(self, new_rules: str) -> None:
+        if gl.message.sender_address != self.owner:
+            raise gl.vm.UserError("[EXPECTED] Only the contract owner may update community rules")
+        self.community_rules = new_rules
 
     def _get_or_init_user(self, author: str) -> dict:
         raw = self.users.get(author, None)
@@ -36,12 +46,10 @@ class ReputationContentModerator(gl.Contract):
         return json.loads(raw)
 
     @gl.public.write
-    def submit_content(
-        self,
-        author: str,
-        content: str,
-        community_rules: str,
-    ) -> None:
+    def submit_content(self, content: str) -> None:
+        author = gl.message.sender_address.as_hex
+        community_rules = self.community_rules
+
         user = self._get_or_init_user(author)
         author_reputation = user["reputation"]
 
@@ -120,6 +128,10 @@ class ReputationContentModerator(gl.Contract):
             "reputation_after": new_reputation,
         })
         self.post_count = bigint(int(self.post_count) + 1)
+
+    @gl.public.view
+    def get_community_rules(self) -> str:
+        return self.community_rules
 
     @gl.public.view
     def get_user_reputation(self, author: str) -> str:
